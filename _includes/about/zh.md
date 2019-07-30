@@ -9,7 +9,7 @@ Hey，我是张虎,AI 工程师, 多出没于[博客](https://blog.csdn.net/mrjk
 
 |     | 💔️           | ❤️ ️                                          | ❤️❤️ ️                                          | ❤️❤️❤️ ️                                      |
 | --- | ------------- | --------------------------------------------- | ----------------------------------------------- | --------------------------------------------- |
-| 😅  | `PHP` `BASIC` | `C` `Prolog` <br> `Objective-C`               | `Kotlin` `Dart` `MIPS`                          | `Swift` `Agda` `Idris`                        |
-| 🧐  |               | `C++` `Hack` <br> `Scheme` `Racket` `Clojure` | `C++ >11` `C#` `Typed Py` <br> `ActionScript 3` | `Scala` `Rust`                                |
-| 😏  | `Shell`       | `Java` `Python`                               | `TypeScript` `Flow` `WASM`                      | `Haskell` `Coq` <br> `SML` `OCaml` `ReasonML` |
-| 🤓  |               | `JavaScript`                                  | `Javascript >ES6`                               | `λ` `Λ` `Π` `Σ`                               |
+| 😅  | `PHP`         | `C` `C++` <br> `Java`               | `Kotlin` `Dart` `MIPS`                          | `Swift` `Agda` `Idris`                        |
+| 🧐  |               | `C++` `Hack` <br> `Scheme` `Racket` `Clojure` | `C++ >11` `C#` `Typed Py` <br> `ActionScript 3` | `Scala` `R`                                |
+| 😏  | `Shell`       | `MATLAB` `Python`                               | `TypeScript` `TensorFoow` `PyTorch`                      | `Haskell` `Coq` <br> `SML` `MySQL` `ReasonML` |
+| 🤓  |               | `JavaScript`                                  | `markdown`                               | `λ` `Λ` `Π` `Σ`                               |
