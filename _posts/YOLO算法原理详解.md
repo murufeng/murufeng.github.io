@@ -1,0 +1,135 @@
+﻿### YOLOv1
+#### 1. 介绍
+论文名称:You only look once unified real-time object detection
+[论文链接](https://www.cv-foundation.org/openaccess/content_cvpr_2016/papers/Redmon_You_Only_Look_CVPR_2016_paper.pdf)
+
+#### 2. 基本思想
+YOLOv1是典型的目标检测one stage方法，在YOLO算法中，***核心思想*** 就是把物体检测（object detection）问题处理成回归问题，用一个卷积神经网络结构就可以从输入图像直接预测bounding box和类别概率。用回归的方法去做目标检测，执行速度快，达到非常高效的检测，其背后的原理和思想也非常简单。
+
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20190828214633854.JPG?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L21yamt6aGFuZ21h,size_16,color_FFFFFF,t_70)
+
+如上图所示，YOLOv1的算法思想就是把一张图片，首先reshape成448x448大小（由于网络中使用了全连接层，所以图片的尺寸需固定大小输入到CNN中），然后将划分成SxS个单元格（原文中S=7），以每个格子所在位置和对应内容为基础，来预测：
+
+- 1）检测框，包含物体框中心相对其所在网格单元格边界的偏移（一般是相对于单元格左上角坐标点的位置偏移，以下用x，y表示）和检测框真实宽高相对于整幅图像的比例（注意这里w，h不是实际的边界框宽和高），每个格子预测B个检测框(原文中是2），如下图；
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20190828222655640.JPG)
+
+- 2）每个框的Confidence，这个confidence代表了预测框含有目标的置信度和这个预测框预测的有多准2重信息，公式和说明如下：
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20190828222849117.JPG?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L21yamt6aGFuZ21h,size_16,color_FFFFFF,t_70)
+
+- 3）每个格子预测一共C个类别的概率分数，并且这个分数和物体框是不相关的，只是基于这个格子。
+<br>
+
+**注意（重要细节）:** 
+- x，y，w，h，confidence都被限制在区间[0,1]。
+- 置信度confidence值只有2种情况，要么为0（边界框中不含目标，P(object)=0），要么为预测框与标注框的IOU，因为P(Object)只有0或1，两种可能，有目标的中心落在格子内，那么P(object)=1，否则为0，不存在（0，1）区间中的值。其他论文中置信度的定义可能跟YOLOv1有些不同，一般置信度指的是预测框中是某类别目标的概率，在[0,1]之间。
+- 每个格子预测C个类别的概率分数，而不是每个每个检测框都需要预测C个类别的概率分数。
+
+<br>
+<br>
+
+
+**具体实现见图：**
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20190828223008439.JPG?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L21yamt6aGFuZ21h,size_16,color_FFFFFF,t_70)
+
+综上所述：每个格子需要输出的信息维度是Bx(4+1)+C=Bx5+C。在YOLO的论文中，S=7，B=2，C是PASCAL VOC的类别数20，所以最后得到的关于预测的物体信息是一个7x7x30的张量。最后从这7x7x30的张量中提取出来的预测框和类别预测的信息经过NMS，就得到了最终的物体检测结构。
+
+<br>
+<br>
+
+#### 3. 网络结构
+![在这里插入图片描述](https://img-blog.csdnimg.cn/2019082822342490.JPG?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L21yamt6aGFuZ21h,size_16,color_FFFFFF,t_70)
+网络方面主要采用GoogLeNet，卷积层主要用来提取特征，全连接层主要用来预测类别概率和坐标。并且，作者将GoogleNet中的Inception模块换成了1x1卷积后接3x3卷积，最终网络结构由24个卷积层和4个最大池化层和2个全连接层组成。
+
+***两个小细节***：1、作者先在ImageNet数据集上预训练网络，而且网络只采用fig3的前面20个卷积层，输入是224*224大小的图像。然后在检测的时候再加上随机初始化的4个卷积层和2个全连接层，同时输入改为更高分辨率的448*448。2、Relu层改为pRelu，即当x<0时，激活值是0.1*x，而不是传统的0。
+
+### 4. 损失函数
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20190828224413644.jpg?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L21yamt6aGFuZ21h,size_16,color_FFFFFF,t_70)
+<br>
+<br>
+
+**损失函数设计细节：**
+- YOLOv1对位置误差，confidence误差，分类误差均使用了均方差作为损失函数。
+- 三部分误差损失（位置误差，confidence误差，分类误差），在损失函数中所占权重不一样，位置误差权重系数最大，为5。
+- 由于一副图片中没有目标的网格占大多数，有目标的网格占少数，所以损失函数中对没有目标的网格中预测的bbox的confidence误差给予小的权重系数，为0.5。
+- 有目标的网格中预测的bbox的confidence损失和分类损失，权重系数正常为1。
+- 由于相同的位置误差对大目标和小目标的影响是不同的，相同的偏差对于小目标来说影响要比大目标大，故作者选择将预测的bbox的w,h先取其平方根，再求均方差损失。
+- 一个网格预测2个bbox，在计算损失函数的时候，只取与ground truth box中IoU大的那个预测框来计算损失。
+- 分类误差，只有当单元格中含有目标时才计算，没有目标的单元格的分类误差不计算在内。
+
+<br>
+<br>
+
+***Loss Function公式详细介绍:***
+
+在原文中，如下图所示:
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20190828224638844.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L21yamt6aGFuZ21h,size_16,color_FFFFFF,t_70)
+
+在loss function中，前面两行表示localization error(即坐标误差)，第一行是box中心坐标(x,y)的预测，第二行为宽和高的预测。这里注意用宽和高的开根号代替原来的宽和高，这样做主要是因为相同的宽和高误差对于小的目标精度影响比大的目标要大。举个例子，原来w=10，h=20，预测出来w=8，h=22，跟原来w=3，h=5，预测出来w1，h=7相比，其实前者的误差要比后者小，但是如果不加开根号，那么损失都是一样：4+4=8，但是加上根号后，变成0.15和0.7。 
+
+第三、四行表示bounding box的confidence损失，就像前面所说的，分成grid cell包含与不包含object两种情况。这里注意下因为每个grid cell包含两个bounding box，所以只有当ground truth 和该网格中的某个bounding box的IOU值最大的时候，才计算这项。
+
+第五行表示预测类别的误差，注意前面的系数只有在grid cell包含object的时候才为1。
+
+<br>
+
+***所以具体实现的时候是什么样的过程呢？***
+
+**训练的时候：** 输入N个图像，每个图像包含M个objec，每个object包含4个坐标（x，y，w，h）和1个label。然后通过网络得到7*7*30大小的三维矩阵。每个1*30的向量前5个元素表示第一个bounding box的4个坐标和1个confidence，第6到10元素表示第二个bounding box的4个坐标和1个confidence。最后20个表示这个grid cell所属类别。注意这30个都是预测的结果。然后就可以计算损失函数的第一、二 、五行。至于第二三行，confidence可以根据ground truth和预测的bounding box计算出的IOU和是否有object的0,1值相乘得到。真实的confidence是0或1值，即有object则为1，没有object则为0。 这样就能计算出loss function的值了。
+<br>
+
+**测试的时候**：输入一张图像，跑到网络的末端得到7*7*30的三维矩阵，这里虽然没有计算IOU，但是由训练好的权重已经直接计算出了bounding box的confidence。然后再跟预测的类别概率相乘就得到每个bounding box属于哪一类的概率。
+
+
+**具体训练和测试过程如下所示:**
+
+<br>
+
+####  5.训练过程
+**预训练分类网络：** 
+在 ImageNet 1000-class competition dataset上预训练一个分类网络，这个网络是Figure3中的前20个卷机网络+average-pooling layer+ fully connected layer （此时网络输入是224*224）
+<br>
+
+**训练检测网络：**
+转换模型去执行检测任务，《Object detection networks on convolutional feature maps》提到说在预训练网络中增加卷积和全链接层可以改善性能。在他们例子基础上添加4个卷积层和2个全链接层，随机初始化权重。检测要求细粒度的视觉信息，所以把网络输入也又224 * 224变成448 * 448。
+
+- 一幅图片分成7x7个网格(grid cell)，某个物体的中心落在这个网格中此网格就负责预测这个物体。
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20190828225824684.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L21yamt6aGFuZ21h,size_16,color_FFFFFF,t_70)
+- 最后一层输出为 （7*7）*30的维度。每个 1*1*30的维度对应原图7*7个cell中的一个，1*1*30中含有类别预测和bbox坐标预测。总得来讲就是让网格负责类别信息，bounding box主要负责坐标信息(部分负责类别信息：confidence也算类别信息)。具体如下：
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20190828230408219.JPG?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L21yamt6aGFuZ21h,size_16,color_FFFFFF,t_70)    
+         ![在这里插入图片描述](https://img-blog.csdnimg.cn/20190828225907997.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L21yamt6aGFuZ21h,size_16,color_FFFFFF,t_70)
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20190828225917823.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L21yamt6aGFuZ21h,size_16,color_FFFFFF,t_70)
+- **每个网格还要预测类别信息，** 论文中有20类。7x7的网格，每个网格要预测2个 bounding box 和 20个类别概率，输出就是 7x7x(5x2 + 20) 。 (通用公式： SxS个网格，每个网格要预测B个bounding box还要预测C个categories，输出就是S x S x (5*B+C)的一个tensor。 注意：class信息是针对每个网格的，confidence信息是针对每个bounding box的）
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20190828225927845.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L21yamt6aGFuZ21h,size_16,color_FFFFFF,t_70)
+
+
+#### 6.测试过程
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20190828230902248.JPG?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L21yamt6aGFuZ21h,size_16,color_FFFFFF,t_70)
+- 等式左边第一项就是每个网格预测的类别信息，第二三项就是每个bounding box预测的confidence。这个乘积即encode了预测的box属于某一类的概率，也有该box准确度的信息。
+
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20190828231004197.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L21yamt6aGFuZ21h,size_16,color_FFFFFF,t_70)
+
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20190828231014194.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L21yamt6aGFuZ21h,size_16,color_FFFFFF,t_70)
+
+- 对每一个网格的每一个bbox执行同样操作： 7x7x2 = 98 bbox （每个bbox既有对应的class信息又有坐标信息）
+
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20190828231037548.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L21yamt6aGFuZ21h,size_16,color_FFFFFF,t_70)
+
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20190828231047889.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L21yamt6aGFuZ21h,size_16,color_FFFFFF,t_70)
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20190828231104423.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L21yamt6aGFuZ21h,size_16,color_FFFFFF,t_70)
+
+- 得到每个bbox的class-specific confidence score以后，设置阈值，滤掉得分低的boxes，对保留的boxes进行NMS处理，就得到最终的检测结果。
+
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20190828231131130.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L21yamt6aGFuZ21h,size_16,color_FFFFFF,t_70)
+
+#### 7. YOLOv1的缺点
+1、位置精确性差，并且，由于每个单元格只预测2个bbox，然后每个单元格最后只取与gt_bbox的IOU高的那个最为最后的检测框，也只是说每个单元格最多只预测一个目标，若单个单元格有多个目标时，只能检测出其他的一个，导致小目标漏检，因此YOLOv1对于小目标物体以及物体比较密集的检测不是很好。 
+2、YOLO虽然可以降低将背景检测为物体的概率，但同时导致召回率较低。
+3、由于输出层为全连接层，因此在检测时，YOLO 训练模型只支持与训练图像相同的输入分辨率的图片。
+
+<br>
+
+
+#### 参考链接
+1.[https://zhuanlan.zhihu.com/p/24916786](https://zhuanlan.zhihu.com/p/24916786)
+2.[https://blog.csdn.net/u014380165/article/details/72616238](https://blog.csdn.net/u014380165/article/details/72616238)
+3.[https://zhuanlan.zhihu.com/p/25236464](https://zhuanlan.zhihu.com/p/25236464)
