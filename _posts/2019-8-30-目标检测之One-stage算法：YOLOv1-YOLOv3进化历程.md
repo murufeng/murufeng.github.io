@@ -1,4 +1,17 @@
-﻿本篇博文主要讲YOLOv1-YOLOv3的进化历程。
+---
+layout: post
+title: "目标检测之One-stage算法：YOLOv1-YOLOv3进化历程"
+subtitle: ""
+author: "murufeng"
+header-img: "img/post-bg-dreamer.jpg"
+header-mask: 0.4
+tags:
+  - Deep Learning
+  - Computer Vision
+  - Object Detection
+---
+
+本篇博文主要讲YOLOv1-YOLOv3的进化历程。
 ### YOLOv1
 #### 1. 介绍
 论文名称:You only look once unified real-time object detection
